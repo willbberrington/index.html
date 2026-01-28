@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Labour Screen Tracker</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+max-width: 1200px;
+margin: 0 auto;
+padding: 20px;
+background-color: #f5f5f5;
+}
+h1 {
+text-align: center;
+color: #333;
+}
+.videos-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+gap: 20px;
+margin-top: 30px;
+}
+.video-card {
+background: white;
+border-radius: 8px;
+overflow: hidden;
+box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.video-card iframe {
+width: 100%;
+height: 200px;
+border: none;
+}
+.video-info {
+padding: 15px;
+}
+.video-title {
+font-size: 14px;
+font-weight: bold;
+margin: 0;
+color: #333;
+}
+.loading {
+text-align: center;
+padding: 50px;
+font-size: 18px;
+color: #666;
+}
+.error {
+background: #ffebee;
+color: #c62828;
+padding: 15px;
+border-radius: 8px;
+margin: 20px 0;
+text-align: center;
+}
+.instructions {
+background: #fff3cd;
+padding: 15px;
+border-radius: 8px;
+margin: 20px 0;
+border-left: 4px solid #ffc107;
+}
+</style>
+</head>
+<body>
+<h1>Global Labour Screen Tracker</h1>
+
+<div id="loading" class="loading">Loading videos...</div>
+<div id="error" class="error" style="display:none;"></div>
+<div id="videos" class="videos-grid"></div>
+
+<script>
+// ⚠️ REPLACE THIS with your actual YouTube Data API v3 key
+const API_KEY = AIzaSyBlpmuXNFGiOd62Gg-mJEx6TroGb26OxBk;
+
+// Search queries in different languages for "day in the life" worker videos
+const searchQueries = [
+'day in the life worker',
+'a day in my life job',
+'día en la vida trabajo', // Spanish (Spain)
+'un día en mi vida trabajo', // Spanish variant
+'día de trabajo en mi vida', // Latin American Spanish
+'mi trabajo diario', // Spanish - daily work
+'journée dans la vie travail', // French (France)
+'une journée de travail', // French variant
+'journée de travail en Afrique', // African French
+'mon travail quotidien', // French - daily work
+'Tag im Leben Arbeit', // German
+'仕事の一日', // Japanese
+'工作中的一天', // Chinese Simplified
+'工作中的一天', // Chinese Traditional
+'我的工作日常', // Chinese - my work routine
+'职业日常', // Chinese - career daily life
+'dia na vida trabalho', // Portuguese (Brazil)
+'rotina de trabalho', // Portuguese - work routine
+'день из жизни работа', // Russian
+'мой рабочий день', // Russian - my work day
+'giorno nella vita lavoro', // Italian
+'직장인 하루', // Korean
+'일상 브이로그 직장', // Korean - daily vlog work
+'يوم في الحياة عمل', // Arabic
+'dag in het leven werk', // Dutch
+'dzień w życiu praca', // Polish
+'how I dey work', // Nigerian Pidgin
+'my work for Nigeria', // Nigerian Pidgin variant
+'วันทำงานของฉัน', // Thai
+'एक दिन मेरी नौकरी', // Hindi
+'mijn dagelijks werk', // Dutch variant
+'τη δουλειά μου', // Greek
+'işimde bir gün', // Turkish
+'pekerjaan sehari-hari', // Indonesian
+'việc làm hàng ngày' // Vietnamese
+];
+
+// Get week number to ensure same videos throughout the week
+function getWeekNumber(date) {
+const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+const dayNum = d.getUTCDay() || 7;
+d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Seeded random number generator for consistent results per week
+function seededRandom(seed) {
+const x = Math.sin(seed++) * 10000;
+return x - Math.floor(x);
+}
+
+async function searchYouTube(query, maxResults = 10) {
+const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&key=${API_KEY}`;
+
+try {
+const response = await fetch(url);
+if (!response.ok) {
+throw new Error(`API Error: ${response.status}`);
+}
+const data = await response.json();
+return data.items || [];
+} catch (error) {
+console.error('Search error:', error);
+return [];
+}
+}
+
+async function loadVideos() {
+if (API_KEY === 'YOUR_API_KEY_HERE') {
+document.getElementById('loading').style.display = 'none';
+document.getElementById('error').style.display = 'block';
+document.getElementById('error').innerHTML = '⚠️ Please add your YouTube API key to the code!';
+return;
+}
+
+try {
+const weekNumber = getWeekNumber(new Date());
+
+// Select 3 random queries based on week number
+const seed = weekNumber * 1000;
+const shuffledQueries = [...searchQueries].sort(() => seededRandom(seed + Math.random() * 100) - 0.5);
+const selectedQueries = shuffledQueries.slice(0, 3);
+
+// Fetch videos from selected queries
+const allVideos = [];
+for (const query of selectedQueries) {
+const videos = await searchYouTube(query, 10);
+allVideos.push(...videos);
+}
+
+// Remove duplicates and shuffle
+const uniqueVideos = Array.from(new Map(allVideos.map(v => [v.id.videoId, v])).values());
+const shuffledVideos = uniqueVideos.sort(() => seededRandom(seed + 500) - 0.5);
+
+// Select 12 videos
+const selectedVideos = shuffledVideos.slice(0, 12);
+
+// Display videos
+document.getElementById('loading').style.display = 'none';
+const container = document.getElementById('videos');
+
+selectedVideos.forEach(video => {
+const videoCard = document.createElement('div');
+videoCard.className = 'video-card';
+videoCard.innerHTML = `
+<iframe
+src="https://www.youtube.com/embed/${video.id.videoId}"
+allowfullscreen>
+</iframe>
+<div class="video-info">
+<p class="video-title">${video.snippet.title}</p>
+</div>
+`;
+container.appendChild(videoCard);
+});
+
+} catch (error) {
+document.getElementById('loading').style.display = 'none';
+document.getElementById('error').style.display = 'block';
+document.getElementById('error').textContent = 'Error loading videos: ' + error.message;
+}
+}
+
+// Load videos when page loads
+loadVideos();
+</script>
+</body>
+</html>

@@ -56,25 +56,39 @@ border-radius: 8px;
 margin: 20px 0;
 text-align: center;
 }
-.instructions {
-background: #fff3cd;
-padding: 15px;
+.update-info {
+background: #e3f2fd;
+padding: 10px 15px;
 border-radius: 8px;
 margin: 20px 0;
-border-left: 4px solid #ffc107;
+text-align: center;
+font-size: 14px;
+color: #1565c0;
+border-left: 4px solid #2196f3;
 }
 </style>
 </head>
 <body>
 <h1>Global Labour Screen Tracker</h1>
 
+<div class="update-info">
+ Videos update every Monday
+</div>
+
 <div id="loading" class="loading">Loading videos...</div>
 <div id="error" class="error" style="display:none;"></div>
 <div id="videos" class="videos-grid"></div>
 
 <script>
-// ⚠️ REPLACE THIS with your actual YouTube Data API v3 key
+// 
 const API_KEY = 'AIzaSyBCQeWO5lhHka-2hvUeNyG2Kojqnum8eRc';
+
+// CACHED VIDEO IDs - These are updated weekly (DO NOT EDIT MANUALLY)
+// Last updated: Week [WEEK_NUMBER]
+const CACHED_VIDEOS = [
+// This section will be populated by the update script
+// Format: {videoId: 'xxx', title: 'xxx'}
+];
 
 // Search queries in different languages for "day in the life" worker videos
 const searchQueries = [
@@ -146,21 +160,14 @@ return [];
 }
 }
 
-async function loadVideos() {
-if (API_KEY === 'YOUR_API_KEY_HERE') {
-document.getElementById('loading').style.display = 'none';
-document.getElementById('error').style.display = 'block';
-document.getElementById('error').innerHTML = '⚠️ Please add your YouTube API key to the code!';
-return;
-}
-
-try {
+async function fetchNewVideos() {
+console.log('Fetching new videos from YouTube API...');
 const weekNumber = getWeekNumber(new Date());
 
-// Select 3 random queries based on week number
+// Select 4 random queries based on week number (more queries for better diversity)
 const seed = weekNumber * 1000;
 const shuffledQueries = [...searchQueries].sort(() => seededRandom(seed + Math.random() * 100) - 0.5);
-const selectedQueries = shuffledQueries.slice(0, 3);
+const selectedQueries = shuffledQueries.slice(0, 4);
 
 // Fetch videos from selected queries
 const allVideos = [];
@@ -176,29 +183,72 @@ const shuffledVideos = uniqueVideos.sort(() => seededRandom(seed + 500) - 0.5);
 // Select 12 videos
 const selectedVideos = shuffledVideos.slice(0, 12);
 
-// Display videos
+return selectedVideos.map(v => ({
+videoId: v.id.videoId,
+title: v.snippet.title
+}));
+}
+
+function displayVideos(videos) {
 document.getElementById('loading').style.display = 'none';
 const container = document.getElementById('videos');
+container.innerHTML = ''; // Clear existing
 
-selectedVideos.forEach(video => {
+videos.forEach(video => {
 const videoCard = document.createElement('div');
 videoCard.className = 'video-card';
 videoCard.innerHTML = `
 <iframe
-src="https://www.youtube.com/embed/${video.id.videoId}"
+src="https://www.youtube.com/embed/${video.videoId}"
 allowfullscreen>
 </iframe>
 <div class="video-info">
-<p class="video-title">${video.snippet.title}</p>
+<p class="video-title">${video.title}</p>
 </div>
 `;
 container.appendChild(videoCard);
 });
+}
+
+async function loadVideos() {
+try {
+const currentWeek = getWeekNumber(new Date());
+
+// Check if we have cached videos
+if (CACHED_VIDEOS.length === 12) {
+console.log('Using cached videos');
+displayVideos(CACHED_VIDEOS);
+} else {
+// No cached videos or cache is old - fetch new ones
+console.log('No cached videos found, fetching from API...');
+
+if (API_KEY === 'YOUR_API_KEY_HERE') {
+document.getElementById('loading').style.display = 'none';
+document.getElementById('error').style.display = 'block';
+document.getElementById('error').innerHTML = '⚠️ Please add your YouTube API key to the code!<br><br>📝 <strong>Note:</strong> After adding your API key, the videos will fetch from YouTube. Then you should copy the console output and update the CACHED_VIDEOS array to avoid using API quota on every page load.';
+return;
+}
+
+const newVideos = await fetchNewVideos();
+displayVideos(newVideos);
+
+// Log the new cache data that should be copied into the code
+console.log('='.repeat(80));
+console.log('📋 COPY THIS INTO YOUR CODE:');
+console.log('='.repeat(80));
+console.log('Replace the CACHED_VIDEOS array (lines 69-72) with:');
+console.log('');
+console.log(`const CACHED_VIDEOS = ${JSON.stringify(newVideos, null, 2)};`);
+console.log('');
+console.log('Also update the week number comment to: Week ' + currentWeek);
+console.log('='.repeat(80));
+}
 
 } catch (error) {
 document.getElementById('loading').style.display = 'none';
 document.getElementById('error').style.display = 'block';
 document.getElementById('error').textContent = 'Error loading videos: ' + error.message;
+console.error('Error:', error);
 }
 }
 

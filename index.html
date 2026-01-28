@@ -72,7 +72,7 @@ border-left: 4px solid #2196f3;
 <h1>Global Labour Screen Tracker</h1>
 
 <div class="update-info">
- Videos update every Monday
+Videos update every Monday
 </div>
 
 <div id="loading" class="loading">Loading videos...</div>
@@ -83,12 +83,9 @@ border-left: 4px solid #2196f3;
 // 
 const API_KEY = 'AIzaSyBCQeWO5lhHka-2hvUeNyG2Kojqnum8eRc';
 
-// CACHED VIDEO IDs - These are updated weekly (DO NOT EDIT MANUALLY)
+// CACHED VIDEO IDs - These are updated automatically every Monday
 // Last updated: Week [WEEK_NUMBER]
-const CACHED_VIDEOS = [
-// This section will be populated by the update script
-// Format: {videoId: 'xxx', title: 'xxx'}
-];
+const CACHED_VIDEOS = [];
 
 // Search queries in different languages for "day in the life" worker videos
 const searchQueries = [

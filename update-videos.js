@@ -112,7 +112,7 @@ async function fetchNewVideos() {
   
   return selectedVideos.map(v => ({
     videoId: v.id.videoId,
-    title: v.snippet.title.replace(/"/g, '\\"') // Escape quotes
+    title: v.snippet.title.replace(/"/g, '\\"').replace(/'/g, "\\'") // Escape quotes
   }));
 }
 
@@ -122,26 +122,48 @@ async function updateIndexFile(videos) {
   
   const weekNumber = getWeekNumber(new Date());
   
-  // Create the new CACHED_VIDEOS array string
-  const videosJson = JSON.stringify(videos, null, 2);
-  const newCacheBlock = `const CACHED_VIDEOS = ${videosJson};`;
+  console.log('Original CACHED_VIDEOS found in file');
   
-  // Replace the CACHED_VIDEOS array (match everything between const CACHED_VIDEOS = and the next const or </script>)
-  const cacheRegex = /const CACHED_VIDEOS = \[[\s\S]*?\];/;
+  // Create the new CACHED_VIDEOS array - properly formatted for JavaScript
+  const videosArray = videos.map(v => 
+    `  {\n    "videoId": "${v.videoId}",\n    "title": "${v.title}"\n  }`
+  ).join(',\n');
+  
+  const newCacheBlock = `const CACHED_VIDEOS = [\n${videosArray}\n];`;
+  
+  console.log('New cache block created:');
+  console.log(newCacheBlock.substring(0, 200) + '...');
+  
+  // More flexible regex - matches any content between const CACHED_VIDEOS = [ and ];
+  const cacheRegex = /const CACHED_VIDEOS\s*=\s*\[[^\]]*\];/s;
   
   if (cacheRegex.test(content)) {
+    console.log('✅ Found CACHED_VIDEOS array, replacing...');
     content = content.replace(cacheRegex, newCacheBlock);
   } else {
-    console.error('Could not find CACHED_VIDEOS array in index.html');
-    process.exit(1);
+    console.error('❌ Could not find CACHED_VIDEOS array in index.html');
+    console.log('Searching for alternative pattern...');
+    
+    // Try alternative pattern
+    const altRegex = /const CACHED_VIDEOS = \[\];/;
+    if (altRegex.test(content)) {
+      console.log('✅ Found empty CACHED_VIDEOS, replacing...');
+      content = content.replace(altRegex, newCacheBlock);
+    } else {
+      console.error('❌ No CACHED_VIDEOS pattern found at all!');
+      process.exit(1);
+    }
   }
   
   // Update the week number comment
-  const weekCommentRegex = /\/\/ Last updated: Week \[WEEK_NUMBER\]/;
-  content = content.replace(weekCommentRegex, `// Last updated: Week ${weekNumber}`);
+  const weekCommentRegex = /\/\/ Last updated: Week \d+/;
+  if (weekCommentRegex.test(content)) {
+    content = content.replace(weekCommentRegex, `// Last updated: Week ${weekNumber}`);
+  }
   
   fs.writeFileSync(indexPath, content, 'utf8');
   console.log('✅ index.html updated successfully!');
+  console.log(`📝 Updated with ${videos.length} videos for week ${weekNumber}`);
 }
 
 async function main() {

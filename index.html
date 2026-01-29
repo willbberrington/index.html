@@ -71,20 +71,16 @@ border-left: 4px solid #2196f3;
 <body>
 <h1>Global Labour Screen Tracker</h1>
 
-<div class="update-info">
-Videos update every Monday
-</div>
-
 <div id="loading" class="loading">Loading videos...</div>
 <div id="error" class="error" style="display:none;"></div>
 <div id="videos" class="videos-grid"></div>
 
 <script>
-// 
+//
 const API_KEY = 'AIzaSyBCQeWO5lhHka-2hvUeNyG2Kojqnum8eRc';
 
 // CACHED VIDEO IDs - These are updated automatically every Monday
-// Last updated: Week 5
+// Last updated: Week [WEEK_NUMBER]
 const CACHED_VIDEOS = [];
 
 // Search queries in different languages for "day in the life" worker videos
@@ -126,85 +122,126 @@ const searchQueries = [
 'việc làm hàng ngày' // Vietnamese
 ];
 
+// Get week number to ensure same videos throughout the week
 function getWeekNumber(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+const dayNum = d.getUTCDay() || 7;
+d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
+// Seeded random number generator for consistent results per week
 function seededRandom(seed) {
-    const x = Math.sin(seed) * 10000;
-    return x - Math.floor(x);
+const x = Math.sin(seed++) * 10000;
+return x - Math.floor(x);
 }
 
-async function searchYouTube(query, maxResults = 4) {
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&key=${API_KEY}`;
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
-        const data = await response.json();
-        return data.items || [];
-    } catch (error) {
-        console.error('Search error:', error);
-        return [];
-    }
+async function searchYouTube(query, maxResults = 10) {
+const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${maxResults}&key=${API_KEY}`;
+
+try {
+const response = await fetch(url);
+if (!response.ok) {
+throw new Error(`API Error: ${response.status}`);
+}
+const data = await response.json();
+return data.items || [];
+} catch (error) {
+console.error('Search error:', error);
+return [];
+}
 }
 
 async function fetchNewVideos() {
-    const weekNumber = getWeekNumber(new Date());
-    const seed = weekNumber;
-    
-    // Pick 3 random languages based on the week
-    const selectedQueries = [];
-    for (let i = 0; i < 3; i++) {
-        const index = Math.floor(seededRandom(seed + i) * searchQueries.length);
-        selectedQueries.push(searchQueries[index]);
-    }
+console.log('Fetching new videos from YouTube API...');
+const weekNumber = getWeekNumber(new Date());
 
-    const allVideos = [];
-    for (const query of selectedQueries) {
-        const videos = await searchYouTube(query, 4);
-        allVideos.push(...videos);
-    }
+// Select 4 random queries based on week number (more queries for better diversity)
+const seed = weekNumber * 1000;
+const shuffledQueries = [...searchQueries].sort(() => seededRandom(seed + Math.random() * 100) - 0.5);
+const selectedQueries = shuffledQueries.slice(0, 4);
 
-    return allVideos.map(v => ({
-        videoId: v.id.videoId,
-        title: v.snippet.title
-    }));
+console.log('Week:', weekNumber, 'Selected queries:', selectedQueries);
+
+// Fetch videos from selected queries
+const allVideos = [];
+for (const query of selectedQueries) {
+const videos = await searchYouTube(query, 10);
+allVideos.push(...videos);
+}
+
+// Remove duplicates and shuffle
+const uniqueVideos = Array.from(new Map(allVideos.map(v => [v.id.videoId, v])).values());
+const shuffledVideos = uniqueVideos.sort(() => seededRandom(seed + 500) - 0.5);
+
+// Select EXACTLY 12 videos
+const selectedVideos = shuffledVideos.slice(0, 12);
+
+console.log(`Selected ${selectedVideos.length} videos for display`);
+
+return selectedVideos.map(v => ({
+videoId: v.id.videoId,
+title: v.snippet.title
+}));
 }
 
 function displayVideos(videos) {
-    document.getElementById('loading').style.display = 'none';
-    const container = document.getElementById('videos');
-    container.innerHTML = ''; 
-    videos.forEach(video => {
-        const videoCard = document.createElement('div');
-        videoCard.className = 'video-card';
-        videoCard.innerHTML = `
-            <iframe src="https://www.youtube.com/embed/${video.videoId}" allowfullscreen></iframe>
-            <div class="video-info"><p class="video-title">${video.title}</p></div>`;
-        container.appendChild(videoCard);
-    });
+document.getElementById('loading').style.display = 'none';
+const container = document.getElementById('videos');
+container.innerHTML = ''; // Clear existing
+
+videos.forEach(video => {
+const videoCard = document.createElement('div');
+videoCard.className = 'video-card';
+videoCard.innerHTML = `
+<iframe
+src="https://www.youtube.com/embed/${video.videoId}"
+allowfullscreen>
+</iframe>
+<div class="video-info">
+<p class="video-title">${video.title}</p>
+</div>
+`;
+container.appendChild(videoCard);
+});
 }
 
 async function loadVideos() {
-    try {
-        // This will now fetch fresh videos automatically every time the week changes
-        const videos = await fetchNewVideos();
-        if (videos.length > 0) {
-            displayVideos(videos);
-        } else {
-            throw new Error("No videos found. Check API key.");
-        }
-    } catch (error) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('error').style.display = 'block';
-        document.getElementById('error').textContent = 'Error: ' + error.message;
-    }
+try {
+const currentWeek = getWeekNumber(new Date());
+
+// Check if we have cached videos
+if (CACHED_VIDEOS.length === 12) {
+console.log('Using cached videos from GitHub Actions');
+displayVideos(CACHED_VIDEOS);
+} else {
+// No cached videos or cache is incomplete - fetch new ones
+console.log('No cached videos found, fetching from API...');
+console.log('⚠️ WARNING: This uses API quota! GitHub Actions should populate the cache automatically.');
+
+const newVideos = await fetchNewVideos();
+displayVideos(newVideos);
+
+// Log the new cache data that should be copied into the code
+console.log('='.repeat(80));
+console.log('📋 GITHUB ACTIONS WILL AUTO-UPDATE THIS:');
+console.log('='.repeat(80));
+console.log(`const CACHED_VIDEOS = ${JSON.stringify(newVideos, null, 2)};`);
+console.log('');
+console.log('Week number: ' + currentWeek);
+console.log('='.repeat(80));
 }
 
+} catch (error) {
+document.getElementById('loading').style.display = 'none';
+document.getElementById('error').style.display = 'block';
+document.getElementById('error').textContent = 'Error loading videos: ' + error.message;
+console.error('Error:', error);
+}
+}
+
+// Load videos when page loads
 loadVideos();
 </script>
 </body>
